@@ -1,0 +1,10 @@
+{
+  "name": "Monitor Leroy Merlin — Instalações e Reformas",
+  "short_name": "Monitor LM",
+  "description": "Monitoramento de reclamações sobre instalações e reformas",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary"
+}

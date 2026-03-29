@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json">
+  <title>Monitor LM — Instalações e Reformas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    :root {
+      --bg-primary: #0f172a;
+      --bg-secondary: #1e293b;
+      --bg-card: #1e293b;
+      --bg-card-hover: #263548;
+      --bg-input: #0f172a;
+      --border: #334155;
+      --border-light: #475569;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent: #38bdf8;
+      --accent-dim: rgba(56, 189, 248, 0.12);
+      --red: #ef4444;
+      --red-dim: rgba(239,68,68,0.15);
+      --orange: #f97316;
+      --orange-dim: rgba(249,115,22,0.15);
+      --yellow: #eab308;
+      --yellow-dim: rgba(234,179,8,0.15);
+      --green: #22c55e;
+      --green-dim: rgba(34,197,94,0.12);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --font: 'DM Sans', -apple-system, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    html { font-size: 15px; -webkit-text-size-adjust: 100%; }
+    
+    body {
+      font-family: var(--font);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100dvh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* === LAYOUT SHELL === */
+    .app-shell {
+      display: flex; flex-direction: column;
+      min-height: 100dvh;
+      padding-top: var(--safe-top);
+      padding-bottom: calc(60px + var(--safe-bottom));
+    }
+
+    /* === HEADER === */
+    .header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(15,23,42,0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 16px;
+    }
+    .header-top { display: flex; align-items: center; justify-content: space-between; }
+    .header h1 {
+      font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .header h1 .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px rgba(34,197,94,0.5);
+      animation: pulse-dot 2s infinite;
+    }
+    .header h1 .dot.inactive { background: var(--text-muted); box-shadow: none; animation: none; }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+    }
+    .header-sub {
+      font-size: 0.73rem; color: var(--text-muted); margin-top: 2px;
+      font-family: var(--mono); letter-spacing: 0.02em;
+    }
+    .btn-icon {
+      width: 38px; height: 38px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border); background: var(--bg-secondary);
+      color: var(--text-secondary); display: flex; align-items: center;
+      justify-content: center; cursor: pointer; transition: all 0.15s;
+      font-size: 1.1rem;
+    }
+    .btn-icon:active { transform: scale(0.92); background: var(--bg-card-hover); }
+
+    /* === STAT CARDS === */
+    .stats-row {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+      padding: 12px 16px 4px;
+    }
+    .stat-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 10px 8px; text-align: center;
+      transition: border-color 0.2s;
+    }
+    .stat-card .stat-num {
+      font-size: 1.5rem; font-weight: 700; line-height: 1;
+      font-family: var(--mono);
+    }
+    .stat-card .stat-label {
+      font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .stat-card.total .stat-num { color: var(--accent); }
+    .stat-card.critico .stat-num { color: var(--red); }
+    .stat-card.critico { border-color: rgba(239,68,68,0.3); }
+    .stat-card.grave .stat-num { color: var(--orange); }
+    .stat-card.grave { border-color: rgba(249,115,22,0.2); }
+    .stat-card.leve .stat-num { color: var(--yellow); }
+
+    /* === TOOLBAR === */
+    .toolbar {
+      display: flex; gap: 8px; padding: 10px 16px;
+      overflow-x: auto; scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .toolbar::-webkit-scrollbar { display: none; }
+    .chip {
+      flex-shrink: 0; padding: 6px 14px; border-radius: 20px;
+      border: 1px solid var(--border); background: var(--bg-secondary);
+      color: var(--text-secondary); font-size: 0.78rem; font-weight: 500;
+      cursor: pointer; transition: all 0.15s; white-space: nowrap;
+      user-select: none; -webkit-tap-highlight-color: transparent;
+    }
+    .chip.active {
+      background: var(--accent-dim); border-color: var(--accent);
+      color: var(--accent);
+    }
+    .chip:active { transform: scale(0.95); }
+
+    /* === ACTIONS BAR === */
+    .actions-bar {
+      display: flex; gap: 8px; padding: 0 16px 8px;
+    }
+    .btn {
+      flex: 1; padding: 10px 12px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border); background: var(--bg-secondary);
+      color: var(--text-primary); font-size: 0.82rem; font-weight: 600;
+      font-family: var(--font); cursor: pointer; transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn.primary {
+      background: var(--accent); border-color: var(--accent);
+      color: #0f172a;
+    }
+    .btn.primary:active { background: #0ea5e9; }
+    .btn:disabled {
+      opacity: 0.5; pointer-events: none;
+    }
+    .btn .spinner {
+      width: 14px; height: 14px; border: 2px solid transparent;
+      border-top-color: currentColor; border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* === COMPLAINT CARDS === */
+    .content { flex: 1; padding: 0 16px 16px; }
+    
+    .complaint-list { display: flex; flex-direction: column; gap: 8px; }
+    
+    .complaint-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      transition: all 0.2s;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+    .complaint-card:active { background: var(--bg-card-hover); }
+    .complaint-card::before {
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+      width: 3px;
+    }
+    .complaint-card.sev-critico::before { background: var(--red); }
+    .complaint-card.sev-grave::before { background: var(--orange); }
+    .complaint-card.sev-leve::before { background: var(--yellow); }
+
+    .cc-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .cc-badge {
+      flex-shrink: 0; padding: 3px 8px; border-radius: 6px;
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .cc-badge.critico { background: var(--red-dim); color: var(--red); }
+    .cc-badge.grave { background: var(--orange-dim); color: var(--orange); }
+    .cc-badge.leve { background: var(--yellow-dim); color: var(--yellow); }
+
+    .cc-title {
+      font-size: 0.88rem; font-weight: 600; line-height: 1.35;
+      color: var(--text-primary); flex: 1;
+    }
+    .cc-summary {
+      font-size: 0.8rem; color: var(--text-secondary); margin-top: 6px;
+      line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .cc-meta {
+      display: flex; gap: 12px; margin-top: 8px;
+      font-size: 0.7rem; color: var(--text-muted);
+      font-family: var(--mono);
+    }
+    .cc-meta span { display: flex; align-items: center; gap: 3px; }
+    .cc-actions { display: flex; gap: 6px; margin-top: 10px; }
+    .cc-actions .btn-sm {
+      padding: 5px 10px; border-radius: 6px; font-size: 0.7rem;
+      border: 1px solid var(--border); background: var(--bg-primary);
+      color: var(--text-secondary); cursor: pointer; font-family: var(--font);
+      font-weight: 500; transition: all 0.15s;
+    }
+    .cc-actions .btn-sm:active { background: var(--bg-card-hover); }
+
+    /* === EMPTY STATE === */
+    .empty-state {
+      text-align: center; padding: 60px 20px;
+      color: var(--text-muted);
+    }
+    .empty-state .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+    .empty-state p { font-size: 0.9rem; line-height: 1.5; }
+
+    /* === BOTTOM NAV === */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(15,23,42,0.95);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border);
+      display: flex;
+      padding-bottom: var(--safe-bottom);
+      z-index: 100;
+    }
+    .nav-item {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      padding: 8px 0 6px; gap: 2px;
+      color: var(--text-muted); font-size: 0.62rem; font-weight: 500;
+      cursor: pointer; transition: color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+      text-decoration: none; user-select: none;
+    }
+    .nav-item.active { color: var(--accent); }
+    .nav-item .nav-icon { font-size: 1.25rem; }
+
+    /* === MODAL / DRAWER === */
+    .drawer-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.6);
+      opacity: 0; pointer-events: none; transition: opacity 0.25s;
+    }
+    .drawer-overlay.open { opacity: 1; pointer-events: all; }
+    .drawer {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 201;
+      background: var(--bg-secondary);
+      border-radius: 20px 20px 0 0;
+      max-height: 85dvh; overflow-y: auto;
+      transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.32,0.72,0,1);
+      padding: 8px 16px calc(16px + var(--safe-bottom));
+    }
+    .drawer-overlay.open .drawer { transform: translateY(0); }
+    .drawer-handle {
+      width: 36px; height: 4px; border-radius: 2px;
+      background: var(--border-light); margin: 4px auto 16px;
+    }
+    .drawer h2 {
+      font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    
+    /* === SETTINGS FORM === */
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block; font-size: 0.75rem; font-weight: 600;
+      color: var(--text-secondary); margin-bottom: 6px;
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .form-group input, .form-group select {
+      width: 100%; padding: 10px 12px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border); background: var(--bg-input);
+      color: var(--text-primary); font-size: 0.88rem;
+      font-family: var(--mono); outline: none; transition: border-color 0.15s;
+    }
+    .form-group input:focus, .form-group select:focus {
+      border-color: var(--accent);
+    }
+    .form-group input::placeholder { color: var(--text-muted); }
+    .form-group .hint {
+      font-size: 0.68rem; color: var(--text-muted); margin-top: 4px;
+    }
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 0; border-bottom: 1px solid var(--border);
+    }
+    .toggle-row label { margin: 0; text-transform: none; font-size: 0.88rem; }
+    .toggle {
+      width: 44px; height: 24px; border-radius: 12px;
+      background: var(--border); position: relative; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle.on { background: var(--accent); }
+    .toggle::after {
+      content: ''; position: absolute; width: 20px; height: 20px;
+      border-radius: 50%; background: white; top: 2px; left: 2px;
+      transition: transform 0.2s;
+    }
+    .toggle.on::after { transform: translateX(20px); }
+
+    /* === DETAIL VIEW === */
+    .detail-severity {
+      display: inline-block; padding: 4px 12px; border-radius: 8px;
+      font-size: 0.78rem; font-weight: 700; margin-bottom: 12px;
+    }
+    .detail-severity.critico { background: var(--red-dim); color: var(--red); }
+    .detail-severity.grave { background: var(--orange-dim); color: var(--orange); }
+    .detail-severity.leve { background: var(--yellow-dim); color: var(--yellow); }
+    .detail-block { margin-bottom: 14px; }
+    .detail-block .label {
+      font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.06em; margin-bottom: 4px;
+    }
+    .detail-block .value {
+      font-size: 0.88rem; color: var(--text-primary); line-height: 1.5;
+    }
+    .detail-block .value a { color: var(--accent); word-break: break-all; }
+
+    /* === SCAN LOG === */
+    .scan-item {
+      padding: 10px 0; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .scan-item .scan-source { font-size: 0.82rem; font-weight: 600; }
+    .scan-item .scan-detail { font-size: 0.72rem; color: var(--text-muted); font-family: var(--mono); }
+    .scan-item .scan-status {
+      padding: 3px 8px; border-radius: 6px; font-size: 0.65rem; font-weight: 700;
+    }
+    .scan-item .scan-status.success { background: var(--green-dim); color: var(--green); }
+    .scan-item .scan-status.error { background: var(--red-dim); color: var(--red); }
+    .scan-item .scan-status.partial { background: var(--yellow-dim); color: var(--yellow); }
+
+    /* === LOADING === */
+    .loading-bar {
+      position: fixed; top: 0; left: 0; right: 0; height: 3px;
+      z-index: 300; overflow: hidden;
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .loading-bar.active { opacity: 1; }
+    .loading-bar::after {
+      content: ''; display: block; width: 30%;
+      height: 100%; background: var(--accent);
+      animation: loading-slide 1s ease-in-out infinite;
+    }
+    @keyframes loading-slide {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(430%); }
+    }
+
+    /* === TOAST === */
+    .toast-container {
+      position: fixed; top: calc(12px + var(--safe-top));
+      left: 16px; right: 16px; z-index: 400;
+      display: flex; flex-direction: column; gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 12px 14px;
+      font-size: 0.82rem; display: flex; align-items: center; gap: 8px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      animation: toast-in 0.3s ease-out; pointer-events: all;
+    }
+    .toast.info { border-left: 3px solid var(--accent); }
+    .toast.success { border-left: 3px solid var(--green); }
+    .toast.error { border-left: 3px solid var(--red); }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(-12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* Period selector */
+    .period-bar {
+      display: flex; gap: 4px; padding: 4px 16px 8px;
+    }
+    .period-btn {
+      padding: 4px 10px; border-radius: 6px; border: none;
+      background: transparent; color: var(--text-muted); font-size: 0.72rem;
+      font-weight: 600; font-family: var(--font); cursor: pointer;
+    }
+    .period-btn.active { background: var(--accent-dim); color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+  // ============================================================
+  // LEROY MONITOR — Frontend SPA (Vanilla JS)
+  // ============================================================
+  const API = '';
+  let state = {
+    view: 'dashboard', // dashboard | settings | logs
+    complaints: [],
+    stats: { total: 0, bySeverity: {}, bySource: {} },
+    scanStatus: { isScanning: false, nextScan: null, schedulerActive: false },
+    scans: [],
+    settings: {},
+    filters: { severity: null, source: null },
+    period: '24h',
+    loading: false,
+    selectedComplaint: null,
+    drawerOpen: null, // null | 'detail' | 'settings'
+  };
+
+  // === API CALLS ===
+  async function api(path, opts = {}) {
+    try {
+      const res = await fetch(API + path, {
+        ...opts,
+        headers: { 'Content-Type': 'application/json', ...opts.headers },
+        body: opts.body ? JSON.stringify(opts.body) : undefined
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('json')) return res.json();
+      return res;
+    } catch (e) {
+      console.error(`API ${path}:`, e);
+      showToast('Erro de conexão com o servidor', 'error');
+      return null;
+    }
+  }
+
+  async function loadDashboard() {
+    state.loading = true; render();
+    const [statusRes, complaintsRes] = await Promise.all([
+      api('/api/status'),
+      api(`/api/complaints?limit=50${state.filters.severity ? '&severity=' + state.filters.severity : ''}${state.filters.source ? '&source=' + state.filters.source : ''}`)
+    ]);
+    if (statusRes) {
+      state.stats = statusRes.stats;
+      state.scanStatus = statusRes.scan;
+    }
+    if (complaintsRes) state.complaints = complaintsRes.complaints;
+    state.loading = false; render();
+  }
+
+  async function loadStats(period) {
+    const res = await api(`/api/stats?period=${period}`);
+    if (res) state.stats = res;
+    render();
+  }
+
+  async function triggerScan() {
+    state.scanStatus.isScanning = true; render();
+    showToast('Barrido manual iniciado...', 'info');
+    await api('/api/scan', { method: 'POST' });
+    // Poll for completion
+    setTimeout(async () => {
+      await loadDashboard();
+      showToast('Barrido concluído!', 'success');
+    }, 5000);
+  }
+
+  async function loadSettings() {
+    const res = await api('/api/settings');
+    if (res) state.settings = res;
+  }
+
+  async function saveSettings(data) {
+    const res = await api('/api/settings', { method: 'POST', body: data });
+    if (res?.ok) {
+      showToast('Configurações salvas!', 'success');
+      await loadSettings();
+    }
+  }
+
+  async function loadScans() {
+    const res = await api('/api/scans?limit=20');
+    if (res) state.scans = res;
+    render();
+  }
+
+  function downloadReport() {
+    const params = new URLSearchParams({ period: 'all' });
+    if (state.filters.severity) params.set('severity', state.filters.severity);
+    if (state.filters.source) params.set('source', state.filters.source);
+    showToast('Gerando relatório PDF...', 'info');
+    // Usar <a download> para que descargue sin salir de la app
+    const a = document.createElement('a');
+    a.href = `/api/report?${params}`;
+    a.download = `relatorio-leroy-${new Date().toISOString().split('T')[0]}.pdf`;
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  // === SSE (Real-time updates) ===
+  function connectSSE() {
+    const es = new EventSource('/api/events');
+    es.addEventListener('scan:start', () => {
+      state.scanStatus.isScanning = true; render();
+    });
+    es.addEventListener('scan:complete', (e) => {
+      const data = JSON.parse(e.data);
+      state.scanStatus.isScanning = false;
+      showToast(`Barrido: ${data.totalNew} novas reclamações`, data.totalNew > 0 ? 'info' : 'success');
+      loadDashboard();
+    });
+    es.addEventListener('scan:source', (e) => {
+      const data = JSON.parse(e.data);
+      const src = data.source === 'reclame_aqui' ? 'Reclame Aqui' : 'Google Reviews';
+      if (data.new > 0) showToast(`${src}: ${data.new} novas`, 'info');
+    });
+    es.onerror = () => { setTimeout(connectSSE, 5000); es.close(); };
+  }
+
+  // === TOAST ===
+  let toastId = 0;
+  function showToast(msg, type = 'info') {
+    const id = ++toastId;
+    const container = document.querySelector('.toast-container');
+    if (!container) return;
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.innerHTML = `${type === 'error' ? '⚠️' : type === 'success' ? '✅' : 'ℹ️'} ${msg}`;
+    container.appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3500);
+  }
+
+  // === RENDER ===
+  function render() {
+    const app = document.getElementById('app');
+    app.innerHTML = `
+      <div class="loading-bar ${state.loading ? 'active' : ''}"></div>
+      <div class="toast-container"></div>
+      <div class="app-shell">
+        ${renderHeader()}
+        ${state.view === 'dashboard' ? renderDashboard() : ''}
+        ${state.view === 'logs' ? renderLogs() : ''}
+        ${state.view === 'settings' ? renderSettingsPage() : ''}
+      </div>
+      ${renderBottomNav()}
+      ${renderDrawer()}
+    `;
+    bindEvents();
+  }
+
+  function renderHeader() {
+    const active = state.scanStatus.schedulerActive;
+    const nextScan = state.scanStatus.nextScan 
+      ? new Date(state.scanStatus.nextScan).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+      : '--:--';
+    return `
+      <header class="header">
+        <div class="header-top">
+          <div>
+            <h1><span class="dot ${active ? '' : 'inactive'}"></span>Monitor LM</h1>
+            <div class="header-sub">
+              ${state.scanStatus.isScanning ? '⟳ Barrido em andamento...' : `Próximo barrido: ${nextScan} BRT`}
+            </div>
+          </div>
+          <button class="btn-icon" onclick="downloadReport()" title="Baixar PDF">📄</button>
+        </div>
+      </header>
+    `;
+  }
+
+  function renderDashboard() {
+    const s = state.stats.bySeverity || {};
+    return `
+      <div class="stats-row">
+        <div class="stat-card total">
+          <div class="stat-num">${state.stats.total || 0}</div>
+          <div class="stat-label">Total</div>
+        </div>
+        <div class="stat-card critico">
+          <div class="stat-num">${s.critico || 0}</div>
+          <div class="stat-label">Crítico</div>
+        </div>
+        <div class="stat-card grave">
+          <div class="stat-num">${s.grave || 0}</div>
+          <div class="stat-label">Grave</div>
+        </div>
+        <div class="stat-card leve">
+          <div class="stat-num">${s.leve || 0}</div>
+          <div class="stat-label">Leve</div>
+        </div>
+      </div>
+
+      <div class="period-bar">
+        ${['24h','7d','30d','all'].map(p => `
+          <button class="period-btn ${state.period === p ? 'active' : ''}" data-period="${p}">${
+            p === '24h' ? '24h' : p === '7d' ? '7 dias' : p === '30d' ? '30 dias' : 'Tudo'
+          }</button>
+        `).join('')}
+      </div>
+
+      <div class="toolbar">
+        <div class="chip ${!state.filters.severity && !state.filters.source ? 'active' : ''}" data-filter="all">Todos</div>
+        <div class="chip ${state.filters.severity === 'critico' ? 'active' : ''}" data-filter-sev="critico">🔴 Crítico</div>
+        <div class="chip ${state.filters.severity === 'grave' ? 'active' : ''}" data-filter-sev="grave">🟠 Grave</div>
+        <div class="chip ${state.filters.severity === 'leve' ? 'active' : ''}" data-filter-sev="leve">🟡 Leve</div>
+        <div class="chip ${state.filters.source === 'reclame_aqui' ? 'active' : ''}" data-filter-src="reclame_aqui">RA</div>
+        <div class="chip ${state.filters.source === 'google_reviews' ? 'active' : ''}" data-filter-src="google_reviews">Google</div>
+      </div>
+
+      <div class="actions-bar">
+        <button class="btn primary" onclick="triggerScan()" ${state.scanStatus.isScanning ? 'disabled' : ''}>
+          ${state.scanStatus.isScanning ? '<span class="spinner"></span> Escaneando...' : '🔍 Barrido Manual'}
+        </button>
+        <button class="btn" onclick="downloadReport()">📊 PDF</button>
+      </div>
+
+      <div class="content">
+        ${state.complaints.length === 0 ? `
+          <div class="empty-state">
+            <div class="empty-icon">📡</div>
+            <p>Nenhuma reclamação encontrada.<br>Execute um barrido ou aguarde o próximo agendado.</p>
+          </div>
+        ` : `
+          <div class="complaint-list">
+            ${state.complaints.map(c => renderComplaintCard(c)).join('')}
+          </div>
+        `}
+      </div>
+    `;
+  }
+
+  function renderComplaintCard(c) {
+    const sevLabel = { critico: 'CRÍTICO', grave: 'GRAVE', leve: 'LEVE' };
+    const srcLabel = { reclame_aqui: 'RA', google_reviews: 'Google' };
+    const date = c.published_at || c.created_at || '';
+    const displayDate = date ? new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '';
+    return `
+      <div class="complaint-card sev-${c.severity}" data-complaint-id="${c.id}">
+        <div class="cc-header">
+          <div class="cc-title">${esc(c.title || c.summary?.substring(0, 80) || 'Sem título')}</div>
+          <span class="cc-badge ${c.severity}">${sevLabel[c.severity] || c.severity}</span>
+        </div>
+        <div class="cc-summary">${esc(c.summary || '')}</div>
+        <div class="cc-meta">
+          <span>📌 ${srcLabel[c.source] || c.source}</span>
+          ${c.store_name ? `<span>🏪 ${esc(c.store_name)}</span>` : ''}
+          <span>📅 ${displayDate}</span>
+          ${c.whatsapp_sent ? '<span>✅ WA</span>' : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderLogs() {
+    return `
+      <div style="padding: 16px;">
+        <h2 style="font-size: 1.1rem; margin-bottom: 12px;">📋 Histórico de Barridos</h2>
+        ${state.scans.length === 0 ? '<p style="color:var(--text-muted)">Nenhum barrido registrado.</p>' : ''}
+        ${state.scans.map(s => `
+          <div class="scan-item">
+            <div>
+              <div class="scan-source">${s.source === 'reclame_aqui' ? 'Reclame Aqui' : 'Google Reviews'}</div>
+              <div class="scan-detail">
+                ${s.complaints_found || 0} encontradas · ${s.complaints_new || 0} novas · ${s.duration_ms || 0}ms
+                ${s.error_message ? `<br>⚠️ ${esc(s.error_message).substring(0, 80)}` : ''}
+              </div>
+            </div>
+            <span class="scan-status ${s.status}">${s.status}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function renderSettingsPage() {
+    const s = state.settings;
+    return `
+      <div style="padding: 16px;">
+        <h2 style="font-size: 1.1rem; margin-bottom: 16px;">⚙️ Configurações</h2>
+        
+        <div class="toggle-row">
+          <label style="font-weight:600; color: var(--text-primary)">Monitoramento automático</label>
+          <div class="toggle ${s.monitoring_active !== 'false' ? 'on' : ''}" data-toggle="monitoring_active"></div>
+        </div>
+
+        <div class="form-group" style="margin-top:16px">
+          <label>WhatsApp destino</label>
+          <input type="text" id="set-whatsapp" value="${esc(s.whatsapp_to || '')}" placeholder="whatsapp:+5511999999999">
+          <div class="hint">Formato: whatsapp:+55XXXXXXXXXXX</div>
+        </div>
+
+        <div class="form-group">
+          <label>Google Places API Key</label>
+          <input type="password" id="set-google" value="${esc(s.google_api_key || '')}" placeholder="AIza...">
+        </div>
+
+        <div class="form-group">
+          <label>Claude API Key</label>
+          <input type="password" id="set-claude" value="${esc(s.claude_api_key || '')}" placeholder="sk-ant-...">
+        </div>
+
+        <div class="form-group">
+          <label>Twilio Account SID</label>
+          <input type="password" id="set-twilio-sid" value="${esc(s.twilio_sid || '')}" placeholder="AC...">
+        </div>
+
+        <div class="form-group">
+          <label>Twilio Auth Token</label>
+          <input type="password" id="set-twilio-token" value="${esc(s.twilio_token || '')}" placeholder="Token">
+        </div>
+
+        <div class="form-group">
+          <label>Twilio WhatsApp From</label>
+          <input type="text" id="set-twilio-from" value="${esc(s.twilio_from || 'whatsapp:+14155238886')}" placeholder="whatsapp:+14155238886">
+        </div>
+
+        <div class="form-group">
+          <label>Intervalo de barrido (horas)</label>
+          <input type="number" id="set-interval" value="${esc(s.scan_interval || '4')}" min="1" max="24">
+        </div>
+
+        <button class="btn primary" style="width:100%; margin-top: 8px;" onclick="saveAllSettings()">
+          💾 Salvar Configurações
+        </button>
+      </div>
+    `;
+  }
+
+  function renderBottomNav() {
+    return `
+      <nav class="bottom-nav">
+        <div class="nav-item ${state.view === 'dashboard' ? 'active' : ''}" data-nav="dashboard">
+          <span class="nav-icon">📊</span> Painel
+        </div>
+        <div class="nav-item ${state.view === 'logs' ? 'active' : ''}" data-nav="logs">
+          <span class="nav-icon">📋</span> Logs
+        </div>
+        <div class="nav-item ${state.view === 'settings' ? 'active' : ''}" data-nav="settings">
+          <span class="nav-icon">⚙️</span> Config
+        </div>
+      </nav>
+    `;
+  }
+
+  function renderDrawer() {
+    if (!state.drawerOpen) return '<div class="drawer-overlay"></div>';
+    
+    let content = '';
+    if (state.drawerOpen === 'detail' && state.selectedComplaint) {
+      const c = state.selectedComplaint;
+      const sevLabel = { critico: '🔴 CRÍTICO', grave: '🟠 GRAVE', leve: '🟡 LEVE' };
+      content = `
+        <div class="drawer-handle"></div>
+        <span class="detail-severity ${c.severity}">${sevLabel[c.severity] || c.severity}</span>
+        <h2 style="font-size:1rem; margin-top: 8px;">${esc(c.title || 'Sem título')}</h2>
+        
+        <div class="detail-block">
+          <div class="label">Resumo</div>
+          <div class="value">${esc(c.summary || 'N/D')}</div>
+        </div>
+        
+        ${c.original_text ? `
+        <div class="detail-block">
+          <div class="label">Texto original</div>
+          <div class="value" style="font-size:0.82rem; color:var(--text-secondary)">${esc(c.original_text).substring(0, 800)}</div>
+        </div>` : ''}
+        
+        <div class="detail-block">
+          <div class="label">Fonte</div>
+          <div class="value">${c.source === 'reclame_aqui' ? 'Reclame Aqui' : 'Google Reviews'}</div>
+        </div>
+        
+        ${c.store_name ? `<div class="detail-block"><div class="label">Loja</div><div class="value">${esc(c.store_name)}</div></div>` : ''}
+        ${c.author ? `<div class="detail-block"><div class="label">Autor</div><div class="value">${esc(c.author)}</div></div>` : ''}
+        
+        <div class="detail-block">
+          <div class="label">Data</div>
+          <div class="value">${c.published_at || c.created_at || 'N/D'}</div>
+        </div>
+        
+        ${c.url ? `<div class="detail-block"><div class="label">Link</div><div class="value"><a href="${esc(c.url)}" target="_blank">${esc(c.url)}</a></div></div>` : ''}
+        
+        <div class="detail-block">
+          <div class="label">WhatsApp</div>
+          <div class="value">${c.whatsapp_sent ? '✅ Enviado' : '⏳ Pendente'}</div>
+        </div>
+        
+        ${c.keywords_matched ? `
+        <div class="detail-block">
+          <div class="label">Keywords</div>
+          <div class="value" style="font-family:var(--mono); font-size:0.78rem">${esc(c.keywords_matched)}</div>
+        </div>` : ''}
+      `;
+    }
+    
+    return `
+      <div class="drawer-overlay ${state.drawerOpen ? 'open' : ''}" data-close-drawer>
+        <div class="drawer" onclick="event.stopPropagation()">
+          ${content}
+        </div>
+      </div>
+    `;
+  }
+
+  // === EVENT BINDING ===
+  function bindEvents() {
+    // Nav
+    document.querySelectorAll('[data-nav]').forEach(el => {
+      el.onclick = () => {
+        state.view = el.dataset.nav;
+        if (state.view === 'logs') loadScans();
+        if (state.view === 'settings') loadSettings().then(render);
+        else render();
+      };
+    });
+
+    // Filters
+    document.querySelectorAll('[data-filter="all"]').forEach(el => {
+      el.onclick = () => { state.filters = { severity: null, source: null }; loadDashboard(); };
+    });
+    document.querySelectorAll('[data-filter-sev]').forEach(el => {
+      el.onclick = () => {
+        const sev = el.dataset.filterSev;
+        state.filters.severity = state.filters.severity === sev ? null : sev;
+        loadDashboard();
+      };
+    });
+    document.querySelectorAll('[data-filter-src]').forEach(el => {
+      el.onclick = () => {
+        const src = el.dataset.filterSrc;
+        state.filters.source = state.filters.source === src ? null : src;
+        loadDashboard();
+      };
+    });
+
+    // Period
+    document.querySelectorAll('[data-period]').forEach(el => {
+      el.onclick = () => {
+        state.period = el.dataset.period;
+        loadStats(state.period);
+      };
+    });
+
+    // Complaint cards
+    document.querySelectorAll('[data-complaint-id]').forEach(el => {
+      el.onclick = () => {
+        const id = el.dataset.complaintId;
+        state.selectedComplaint = state.complaints.find(c => c.id === id);
+        if (state.selectedComplaint) {
+          state.drawerOpen = 'detail'; render();
+        }
+      };
+    });
+
+    // Drawer close
+    document.querySelectorAll('[data-close-drawer]').forEach(el => {
+      el.onclick = () => { state.drawerOpen = null; render(); };
+    });
+
+    // Toggle
+    document.querySelectorAll('[data-toggle]').forEach(el => {
+      el.onclick = () => {
+        const key = el.dataset.toggle;
+        const current = state.settings[key];
+        const newVal = current === 'false' ? 'true' : 'false';
+        state.settings[key] = newVal;
+        saveSettings({ [key]: newVal });
+        render();
+      };
+    });
+  }
+
+  // Save settings from form
+  window.saveAllSettings = async function() {
+    const data = {
+      whatsapp_to: document.getElementById('set-whatsapp')?.value || '',
+      google_api_key: document.getElementById('set-google')?.value || '',
+      claude_api_key: document.getElementById('set-claude')?.value || '',
+      twilio_sid: document.getElementById('set-twilio-sid')?.value || '',
+      twilio_token: document.getElementById('set-twilio-token')?.value || '',
+      twilio_from: document.getElementById('set-twilio-from')?.value || '',
+      scan_interval: document.getElementById('set-interval')?.value || '4',
+    };
+    // Filter out masked values (containing ...)
+    const filtered = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (v && !v.includes('...')) filtered[k] = v;
+    }
+    await saveSettings(filtered);
+  };
+
+  // Util
+  function esc(s) {
+    if (!s) return '';
+    const d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+  }
+
+  // === INIT ===
+  async function init() {
+    render();
+    await loadDashboard();
+    connectSSE();
+  }
+
+  init();
+  </script>
+</body>
+</html>

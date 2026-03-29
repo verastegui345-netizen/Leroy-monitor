@@ -501,11 +501,18 @@
   }
 
   function downloadReport() {
-    const params = new URLSearchParams({ period: state.period });
+    const params = new URLSearchParams({ period: 'all' });
     if (state.filters.severity) params.set('severity', state.filters.severity);
     if (state.filters.source) params.set('source', state.filters.source);
-    window.open(`/api/report?${params}`, '_blank');
     showToast('Gerando relatório PDF...', 'info');
+    // Usar <a download> para que descargue sin salir de la app
+    const a = document.createElement('a');
+    a.href = `/api/report?${params}`;
+    a.download = `relatorio-leroy-${new Date().toISOString().split('T')[0]}.pdf`;
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   // === SSE (Real-time updates) ===

@@ -1,31 +1,62 @@
 /**
- * classifier.js — Classificação de gravidade por IA (Claude API)
+ * classifier.js — Classificação de gravidade por IA (v2)
  * 
- * Analisa cada reclamação filtrada e atribui nível de gravidade:
- * - leve: insatisfação menor, atraso leve
- * - grave: problema sério não resolvido, múltiplas visitas sem solução
- * - critico: dano material, risco de segurança, fraude, abandono de reforma
+ * REGRA FUNDAMENTAL: só classificar reclamações onde o cliente
+ * EXPLICITAMENTE menciona que a Leroy Merlin executou ou deveria
+ * executar um serviço de instalação, montagem ou reforma.
+ * 
+ * Níveis:
+ * - leve / grave / critico: reclamação confirmada sobre serviço LM
+ * - duvida: menção a termos relacionados mas não é claro se LM executou o serviço
+ * - descartado: não tem relação com serviço de instalação/reforma
  */
 import { logger } from './logger.js';
+import { getKeywordConfidence } from './keywords.js';
 
-const CLASSIFICATION_PROMPT = `Você é um analista de qualidade do serviço de instalações e reformas da Leroy Merlin Brasil. Analise a reclamação abaixo e classifique conforme as regras:
+const CLASSIFICATION_PROMPT = `Você é um analista RIGOROSO do serviço de instalações e reformas da Leroy Merlin Brasil.
 
-NÍVEIS DE GRAVIDADE:
-🟡 LEVE: Insatisfação menor, atraso leve, pequeno mal-entendido, demora no agendamento, falta de comunicação pontual.
-🟠 GRAVE: Problema sério não resolvido, múltiplas visitas sem solução, dano menor à propriedade, prestador não compareceu, serviço mal feito precisando refazer, prazo muito ultrapassado.
-🔴 CRÍTICO: Dano material significativo, risco de segurança (exposição elétrica, estrutural, hidráulica), possível fraude, reforma abandonada no meio, infiltração/vazamento causado pelo serviço, risco à integridade física.
+SUA ÚNICA MISSÃO: identificar reclamações onde a Leroy Merlin EXECUTOU ou DEVERIA TER EXECUTADO um serviço de instalação, montagem ou reforma para o cliente.
 
-RECLAMAÇÃO:
+REGRA FUNDAMENTAL - LEIA COM ATENÇÃO:
+A Leroy Merlin vende produtos E também oferece serviços de instalação/montagem/reforma. Você SÓ deve classificar reclamações sobre o SERVIÇO, não sobre produtos.
+
+DESCARTAR (relevance: "descartado") se a reclamação é sobre:
+- Entrega de produto (mesmo que o cliente mencione "obra" — ele comprou material, LM não instalou)
+- Atendimento de funcionário em loja
+- Defeito de produto comprado
+- Preço, cobrança, frete
+- Cliente que comprou material para obra própria e reclama do produto
+- Qualquer situação onde LM apenas VENDEU algo, não EXECUTOU serviço
+
+DÚVIDA (relevance: "duvida") se:
+- O cliente menciona "instalação" ou "montagem" mas não fica claro se foi LM quem fez
+- Pode ser que o cliente contratou externamente
+- O texto é ambíguo
+
+CONFIRMAR como relevante APENAS se o cliente EXPLICITAMENTE indica que:
+- Contratou serviço de instalação/montagem/reforma DA Leroy Merlin
+- Um técnico/prestador ENVIADO pela Leroy Merlin fez ou deveria fazer o serviço
+- Houve agendamento técnico pela Leroy Merlin
+- O serviço foi pago à Leroy Merlin
+
+Se CONFIRMADO como relevante, classificar gravidade:
+🟡 LEVE: Atraso leve no agendamento, pequena falha de comunicação sobre o serviço
+🟠 GRAVE: Técnico não compareceu, serviço mal executado precisando refazer, múltiplas visitas sem solução, prazo muito ultrapassado
+🔴 CRÍTICO: Dano material causado pelo serviço, risco de segurança (elétrico/estrutural/hidráulico), reforma abandonada, possível fraude
+
+RECLAMAÇÃO PARA ANALISAR:
 Título: {TITLE}
 Texto: {TEXT}
 Fonte: {SOURCE}
+Loja: {STORE}
 
 RESPONDA EXATAMENTE neste formato JSON, sem markdown:
 {
-  "severity": "leve|grave|critico",
-  "summary": "Resumo em até 3 linhas objetivas do problema",
-  "risk_factors": ["fator1", "fator2"],
-  "recommended_action": "Ação recomendada em 1 linha"
+  "relevance": "confirmado|duvida|descartado",
+  "reason": "Explicação em 1 linha de por que é ou não relevante",
+  "severity": "leve|grave|critico|null",
+  "summary": "Resumo em até 3 linhas (só se relevante ou dúvida)",
+  "service_type": "instalação|montagem|reforma|null"
 }`;
 
 /**
@@ -33,7 +64,7 @@ RESPONDA EXATAMENTE neste formato JSON, sem markdown:
  */
 export async function classifyComplaint(complaint, apiKey) {
   if (!apiKey) {
-    logger.warn('Claude API Key não configurada — classificação manual');
+    logger.warn('Claude API Key não configurada — classificação heurística');
     return fallbackClassification(complaint);
   }
 
@@ -41,7 +72,8 @@ export async function classifyComplaint(complaint, apiKey) {
     const prompt = CLASSIFICATION_PROMPT
       .replace('{TITLE}', complaint.title || 'Sem título')
       .replace('{TEXT}', (complaint.original_text || '').substring(0, 2000))
-      .replace('{SOURCE}', complaint.source === 'reclame_aqui' ? 'Reclame Aqui' : 'Google Reviews');
+      .replace('{SOURCE}', complaint.source === 'reclame_aqui' ? 'Reclame Aqui' : 'Google Reviews')
+      .replace('{STORE}', complaint.store_name || 'Não informada');
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -66,24 +98,36 @@ export async function classifyComplaint(complaint, apiKey) {
     const data = await response.json();
     const text = data.content?.[0]?.text || '';
     
-    // Parsear JSON da resposta
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      logger.warn('Resposta da IA não contém JSON válido', { text });
+      logger.warn('Resposta IA sem JSON válido', { text });
       return fallbackClassification(complaint);
     }
 
     const result = JSON.parse(jsonMatch[0]);
     
-    // Validar severity
-    const validSeverities = ['leve', 'grave', 'critico'];
-    if (!validSeverities.includes(result.severity)) {
-      result.severity = 'grave'; // default conservador
+    // Se descartado pela IA, retornar null para não inserir no DB
+    if (result.relevance === 'descartado') {
+      logger.info(`Descartado pela IA: ${complaint.title?.substring(0, 50)}`);
+      return null;
     }
 
+    // Se dúvida, marcar como tal
+    if (result.relevance === 'duvida') {
+      return {
+        severity: 'duvida',
+        summary: `[COM DÚVIDA] ${result.summary || result.reason || complaint.title}`,
+        ai_analysis: JSON.stringify(result)
+      };
+    }
+
+    // Confirmado — validar severity
+    const validSeverities = ['leve', 'grave', 'critico'];
+    const severity = validSeverities.includes(result.severity) ? result.severity : 'grave';
+
     return {
-      severity: result.severity,
-      summary: result.summary || complaint.title || 'Sem resumo disponível',
+      severity,
+      summary: result.summary || complaint.title || 'Sem resumo',
       ai_analysis: JSON.stringify(result)
     };
 
@@ -94,27 +138,31 @@ export async function classifyComplaint(complaint, apiKey) {
 }
 
 /**
- * Classificação por heurística quando a IA não está disponível.
- * Usa palavras-chave de alto risco para determinar gravidade.
+ * Classificação heurística sem IA
  */
 function fallbackClassification(complaint) {
   const text = `${complaint.title || ''} ${complaint.original_text || ''}`.toLowerCase();
+  const { confidence } = getKeywordConfidence(text);
   
+  // Se confiança baixa, marcar como dúvida
+  if (confidence === 'medium') {
+    return {
+      severity: 'duvida',
+      summary: `[COM DÚVIDA] ${complaint.title || (complaint.original_text || '').substring(0, 200)}`,
+      ai_analysis: JSON.stringify({ method: 'heuristic', relevance: 'duvida' })
+    };
+  }
+
   const criticWords = [
-    'perigo', 'perigoso', 'risco', 'elétric', 'eletric', 'choque',
-    'vazamento', 'infiltração', 'infiltracao', 'desabou', 'desmoron',
-    'fraude', 'golpe', 'abandonou', 'abandonaram', 'sumiu', 'sumiram',
-    'incêndio', 'incendio', 'curto-circuito', 'curto circuito',
-    'estrutural', 'rachadur', 'trinca'
+    'perigo', 'risco', 'choque', 'vazamento', 'infiltração',
+    'desabou', 'fraude', 'abandonou', 'incêndio', 'curto-circuito',
+    'estrutural', 'rachadura'
   ];
   
   const graveWords = [
-    'não resolveu', 'nao resolveu', 'sem solução', 'sem solucao',
-    'várias visitas', 'varias visitas', 'múltiplas', 'multiplas',
-    'dano', 'estrago', 'quebrou', 'quebraram', 'refazer',
-    'nunca mais', 'péssimo', 'pessimo', 'horrível', 'horrivel',
-    'absurdo', 'inadmissível', 'inadmissivel', 'processo',
-    'procon', 'justiça', 'justica', 'advogado', 'indenização'
+    'não resolveu', 'sem solução', 'várias visitas', 'não compareceu',
+    'refazer', 'péssimo', 'horrível', 'procon', 'justiça', 'indenização',
+    'não apareceu', 'mal feito', 'mal executado'
   ];
 
   if (criticWords.some(w => text.includes(w))) {
@@ -141,18 +189,22 @@ function fallbackClassification(complaint) {
 }
 
 /**
- * Classifica um lote de reclamações com rate limiting
+ * Classifica um lote — descarta os não relevantes
  */
 export async function classifyBatch(complaints, apiKey) {
   const results = [];
   
   for (const complaint of complaints) {
     const classification = await classifyComplaint(complaint, apiKey);
-    results.push({ ...complaint, ...classification });
     
-    // Rate limiting: 500ms entre chamadas para Haiku
+    // null = descartado pela IA, não inserir
+    if (classification !== null) {
+      results.push({ ...complaint, ...classification });
+    }
+    
     if (apiKey) await new Promise(r => setTimeout(r, 500));
   }
   
+  logger.info(`Classificação: ${complaints.length} analisadas, ${results.length} relevantes, ${complaints.length - results.length} descartadas`);
   return results;
 }

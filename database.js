@@ -37,7 +37,7 @@ export async function initDatabase() {
       id TEXT PRIMARY KEY,
       source TEXT NOT NULL CHECK(source IN ('reclame_aqui','google_reviews')),
       external_id TEXT,
-      severity TEXT NOT NULL CHECK(severity IN ('leve','grave','critico')),
+      severity TEXT NOT NULL CHECK(severity IN ('leve','grave','critico','duvida')),
       title TEXT, summary TEXT NOT NULL, original_text TEXT,
       author TEXT, published_at TEXT, url TEXT, store_name TEXT,
       keywords_matched TEXT, ai_analysis TEXT,
@@ -160,7 +160,7 @@ export function getComplaints({ severity, source, limit=50, offset=0, startDate,
   if (source) { q += ' AND source=?'; p.push(source); }
   if (startDate) { q += ' AND created_at>=?'; p.push(startDate); }
   if (endDate) { q += ' AND created_at<=?'; p.push(endDate); }
-  q += ` ORDER BY CASE severity WHEN 'critico' THEN 1 WHEN 'grave' THEN 2 WHEN 'leve' THEN 3 END, created_at DESC LIMIT ? OFFSET ?`;
+  q += ` ORDER BY CASE severity WHEN 'critico' THEN 1 WHEN 'grave' THEN 2 WHEN 'leve' THEN 3 WHEN 'duvida' THEN 4 END, created_at DESC LIMIT ? OFFSET ?`;
   p.push(limit, offset);
   return query(q, p);
 }
@@ -188,7 +188,7 @@ export function getUnsentComplaints() {
 }
 
 export function getComplaintsForReport(since) {
-  return query(`SELECT * FROM complaints WHERE created_at>=? ORDER BY CASE severity WHEN 'critico' THEN 1 WHEN 'grave' THEN 2 WHEN 'leve' THEN 3 END, created_at DESC`, [since]);
+  return query(`SELECT * FROM complaints WHERE created_at>=? ORDER BY CASE severity WHEN 'critico' THEN 1 WHEN 'grave' THEN 2 WHEN 'leve' THEN 3 WHEN 'duvida' THEN 4 END, created_at DESC`, [since]);
 }
 
 // ==========================================
